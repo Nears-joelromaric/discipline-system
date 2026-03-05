@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { usePlanningStore } from '../stores/planningStore';
 import type { Task } from '../types';
 import { TaskModal } from './TaskModal';
-import { Check, Edit, Trash2, Plus, ChevronLeft, ChevronRight } from 'lucide-react';
+import { TaskDetailModal } from './TaskDetailModal';
+import { Check, Edit, Trash2, Plus, ChevronLeft, ChevronRight, Eye } from 'lucide-react';
 
 const TYPE_COLORS: Record<string, string> = {
   memoire: 'bg-indigo-100 text-indigo-800',
@@ -25,6 +26,7 @@ const TYPE_LABELS: Record<string, string> = {
 export const TaskList: React.FC = () => {
   const { tasks, currentWeek, setCurrentWeek, toggleTask, planning } = usePlanningStore();
   const [modal, setModal] = useState<{ mode: 'create' | 'edit' | 'delete'; task?: Task } | null>(null);
+  const [detailTask, setDetailTask] = useState<Task | null>(null);
 
   const weekTasks = tasks
     .filter(t => t.weekNumber === currentWeek)
@@ -110,7 +112,12 @@ export const TaskList: React.FC = () => {
 
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="font-medium text-gray-800 truncate">{task.activity}</span>
+                  <button
+                    onClick={() => setDetailTask(task)}
+                    className="font-medium text-gray-800 truncate text-left hover:text-indigo-700 hover:underline transition-colors"
+                  >
+                    {task.activity}
+                  </button>
                   <span className={`px-2 py-0.5 rounded text-xs font-medium ${TYPE_COLORS[task.type] || 'bg-gray-100'}`}>
                     {TYPE_LABELS[task.type] || task.type}
                   </span>
@@ -121,6 +128,15 @@ export const TaskList: React.FC = () => {
               </div>
 
               <div className="flex gap-1 flex-shrink-0">
+                {(task.details || task.description) && (
+                  <button
+                    onClick={() => setDetailTask(task)}
+                    className="p-1.5 text-indigo-400 hover:text-indigo-700 hover:bg-indigo-50 rounded"
+                    title="Voir les détails"
+                  >
+                    <Eye size={16} />
+                  </button>
+                )}
                 <button
                   onClick={() => setModal({ mode: 'edit', task })}
                   className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded"
@@ -144,6 +160,13 @@ export const TaskList: React.FC = () => {
           task={modal.task}
           mode={modal.mode}
           onClose={() => setModal(null)}
+        />
+      )}
+
+      {detailTask && (
+        <TaskDetailModal
+          task={detailTask}
+          onClose={() => setDetailTask(null)}
         />
       )}
     </div>

@@ -1,3 +1,31 @@
+export interface TaskStep {
+  step?: number;
+  action?: string;
+  instructions?: string | string[];
+  url?: string;
+  platform?: string;
+  duration?: string;
+  downloadSize?: string;
+  plugins?: Array<{ name: string; purpose: string; link?: string }>;
+}
+
+export interface TaskDetails {
+  objective?: string;
+  description?: string;
+  steps?: Array<string | TaskStep>;
+  learningObjectives?: string[];
+  successCriteria?: string[];
+  expectedOutcome?: string;
+  tools?: Array<{ tool?: string; name?: string; url?: string; use?: string; cost?: string; benefit?: string }>;
+  breakdown?: Record<string, string>;
+  sessionType?: string;
+  platform?: string;
+  focusToday?: string;
+  topicDiscussion?: string;
+  modules?: Array<{ moduleNumber?: number; title?: string; startDate?: string; topics?: string[]; practicalActivity?: string }>;
+  [key: string]: unknown;
+}
+
 export interface Task {
   id: string;
   weekNumber: number;
@@ -11,6 +39,8 @@ export interface Task {
   completed: boolean;
   completedAt?: Date;
   imprevuReason?: string;
+  description?: string;
+  details?: TaskDetails;
 }
 
 export interface TaskAction {

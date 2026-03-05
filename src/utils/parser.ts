@@ -197,6 +197,8 @@ export class UniversalParser {
       points: parseInt(task.points || 0),
       completed: task.completed || false,
       imprevuReason: task.imprevuReason,
+      description: task.description,
+      details: task.details ?? undefined,
     };
   }
 

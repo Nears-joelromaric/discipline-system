@@ -114,6 +114,16 @@ export const TaskModal: React.FC<TaskModalProps> = ({ task, mode, onClose }) => 
                 <option value="autre">Autre</option>
               </select>
             </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-1">Description / Mini-activités</label>
+              <textarea
+                value={formData.description || ''}
+                onChange={e => setFormData({ ...formData, description: e.target.value })}
+                placeholder="Décris ce qui doit être fait, appris ou maîtrisé..."
+                className="w-full p-2 border rounded h-24 text-sm resize-none"
+              />
+            </div>
           </div>
         )}
 
