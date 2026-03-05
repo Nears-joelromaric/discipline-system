@@ -26,17 +26,22 @@ export class UniversalParser {
     const data = JSON.parse(text);
 
     if (!data.weeks || !Array.isArray(data.weeks)) {
-      throw new Error('Structure JSON invalide');
+      throw new Error('Structure JSON invalide : propriété "weeks" manquante');
     }
 
     return {
       id: crypto.randomUUID(),
       title: data.title || 'Planning Importé',
-      description: data.description,
+      description: data.description || data.finalGoal,
       startDate: new Date(data.startDate || Date.now()),
       totalWeeks: data.weeks.length,
       weeks: data.weeks.map((w: any) => this.normalizeWeek(w)),
-      metadata: data.metadata,
+      metadata: {
+        ...(data.metadata || {}),
+        endDate: data.endDate,
+        projectDuration: data.projectDuration,
+        totalHours: data.totalHours,
+      },
     };
   }
 
@@ -142,22 +147,48 @@ export class UniversalParser {
     };
   }
 
+  /**
+   * Normalize a week — handles two JSON structures:
+   *  1. Flat:   week.tasks = [...]
+   *  2. Nested: week.days = [{ date, tasks: [...] }]  ← planning_JSON_MODIFIE format
+   */
   private static normalizeWeek(week: any): Week {
+    let tasks: Task[] = [];
+
+    if (Array.isArray(week.tasks) && week.tasks.length > 0) {
+      // Structure 1 — tasks directly on week
+      tasks = week.tasks.map((t: any) => this.normalizeTask(t, week.number));
+    } else if (Array.isArray(week.dailyTasks) && week.dailyTasks.length > 0) {
+      tasks = week.dailyTasks.map((t: any) => this.normalizeTask(t, week.number));
+    } else if (Array.isArray(week.days) && week.days.length > 0) {
+      // Structure 2 — days → tasks (date lives on the day object)
+      week.days.forEach((day: any) => {
+        const dayDate: string = day.date || '';
+        (day.tasks || []).forEach((t: any) => {
+          tasks.push(this.normalizeTask(t, week.number, dayDate));
+        });
+      });
+    }
+
     return {
-      number: week.number || week.week || 1,
-      title: week.title || week.phase || '',
-      focus: week.focus || '',
+      number: week.number ?? week.week ?? 1,
+      title: week.title || week.phase || `Semaine ${week.number}`,
+      focus: week.focus || week.subtitle || (Array.isArray(week.objectives) ? week.objectives[0] : '') || '',
       certification: week.certification || week.certif,
       deliverable: week.deliverable,
-      tasks: (week.tasks || week.dailyTasks || []).map((t: any) => this.normalizeTask(t)),
+      tasks,
     };
   }
 
-  private static normalizeTask(task: any): Task {
+  /**
+   * Normalize a task — weekNum and dayDate override task-level fields
+   * when tasks come from a nested days structure.
+   */
+  private static normalizeTask(task: any, weekNum?: number, dayDate?: string): Task {
     return {
       id: task.id || crypto.randomUUID(),
-      weekNumber: task.weekNumber || task.week || 1,
-      date: new Date(task.date || Date.now()),
+      weekNumber: weekNum ?? task.weekNumber ?? task.week ?? 1,
+      date: new Date(dayDate || task.date || Date.now()),
       time: task.time || '00:00',
       endTime: task.endTime,
       activity: task.activity || task.description || '',
@@ -169,10 +200,34 @@ export class UniversalParser {
     };
   }
 
+  /**
+   * Map all known type strings → valid Task['type']
+   * "break" / "pause" → "autre"
+   * "certification" → "certif"
+   */
   private static normalizeType(type: string): Task['type'] {
-    const normalized = type?.toLowerCase() || 'autre';
-    const validTypes: Task['type'][] = ['memoire', 'certif', 'anglais', 'finance', 'sport', 'autre'];
-    return validTypes.includes(normalized as any) ? normalized as Task['type'] : 'autre';
+    const map: Record<string, Task['type']> = {
+      memoire: 'memoire',
+      'mémoire': 'memoire',
+      certif: 'certif',
+      certification: 'certif',
+      cert: 'certif',
+      anglais: 'anglais',
+      english: 'anglais',
+      langue: 'anglais',
+      finance: 'finance',
+      financial: 'finance',
+      sport: 'sport',
+      fitness: 'sport',
+      gym: 'sport',
+      break: 'autre',
+      pause: 'autre',
+      repos: 'autre',
+      autre: 'autre',
+      other: 'autre',
+    };
+    const key = type?.toLowerCase()?.trim() || 'autre';
+    return map[key] ?? 'autre';
   }
 
   private static parseTaskLine(line: string, weekNum: number): Task | null {
