@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type { Planning, Task, TaskAction, Stats, Alarm } from '../types';
+import { db } from '../utils/db';
 
 interface PlanningState {
   planning: Planning | null;
@@ -9,6 +10,7 @@ interface PlanningState {
   alarms: Alarm[];
   stats: Stats;
 
+  initFromDB: () => Promise<void>;
   loadPlanning: (planning: Planning) => void;
   setCurrentWeek: (week: number) => void;
   addTask: (task: Omit<Task, 'id'>, justification: string) => void;
@@ -71,12 +73,41 @@ export const usePlanningStore = create<PlanningState>((set, get) => ({
     tasksTotal: 0,
   },
 
+  initFromDB: async () => {
+    try {
+      const plannings = await db.plannings.toArray();
+      if (plannings.length === 0) return;
+      const planning = plannings[plannings.length - 1];
+      const tasks = await db.tasks.toArray();
+      const actions = await db.actions.toArray();
+      const alarms = await db.alarms.toArray();
+      set({ planning, tasks, actions, alarms });
+      get().calculateStats();
+    } catch (err) {
+      console.error('Failed to init from DB:', err);
+    }
+  },
+
   loadPlanning: (planning) => {
+    const allTasks = planning.weeks.flatMap(w => w.tasks);
     set({
       planning,
-      tasks: planning.weeks.flatMap(w => w.tasks),
+      tasks: allTasks,
       currentWeek: 1,
+      actions: [],
+      alarms: [],
     });
+
+    // Persist to IndexedDB (replace existing data)
+    db.transaction('rw', db.plannings, db.tasks, db.actions, db.alarms, async () => {
+      await db.plannings.clear();
+      await db.tasks.clear();
+      await db.actions.clear();
+      await db.alarms.clear();
+      await db.plannings.put(planning);
+      if (allTasks.length > 0) await db.tasks.bulkPut(allTasks);
+    }).catch(err => console.error('DB loadPlanning error:', err));
+
     get().createAlarms();
     get().calculateStats();
   },
@@ -104,6 +135,9 @@ export const usePlanningStore = create<PlanningState>((set, get) => ({
       actions: [...state.actions, action],
     }));
 
+    db.tasks.put(newTask).catch(err => console.error('DB addTask error:', err));
+    db.actions.put(action).catch(err => console.error('DB addAction error:', err));
+
     get().createAlarms();
     get().calculateStats();
   },
@@ -112,6 +146,8 @@ export const usePlanningStore = create<PlanningState>((set, get) => ({
     const task = get().tasks.find(t => t.id === taskId);
     if (!task) return;
 
+    const updatedTask = { ...task, ...updates };
+
     const action: TaskAction = {
       id: crypto.randomUUID(),
       action: 'update',
@@ -119,13 +155,16 @@ export const usePlanningStore = create<PlanningState>((set, get) => ({
       timestamp: new Date(),
       justification,
       previousState: task,
-      newState: { ...task, ...updates },
+      newState: updatedTask,
     };
 
     set(state => ({
-      tasks: state.tasks.map(t => t.id === taskId ? { ...t, ...updates } : t),
+      tasks: state.tasks.map(t => t.id === taskId ? updatedTask : t),
       actions: [...state.actions, action],
     }));
+
+    db.tasks.put(updatedTask).catch(err => console.error('DB updateTask error:', err));
+    db.actions.put(action).catch(err => console.error('DB addAction error:', err));
 
     get().calculateStats();
   },
@@ -149,6 +188,11 @@ export const usePlanningStore = create<PlanningState>((set, get) => ({
       alarms: state.alarms.filter(a => a.taskId !== taskId),
     }));
 
+    db.tasks.delete(taskId).catch(err => console.error('DB deleteTask error:', err));
+    db.actions.put(action).catch(err => console.error('DB addAction error:', err));
+    db.alarms.where('taskId').equals(taskId).delete()
+      .catch(err => console.error('DB deleteAlarms error:', err));
+
     get().calculateStats();
   },
 
@@ -160,6 +204,11 @@ export const usePlanningStore = create<PlanningState>((set, get) => ({
           : t
       ),
     }));
+
+    const updatedTask = get().tasks.find(t => t.id === taskId);
+    if (updatedTask) {
+      db.tasks.put(updatedTask).catch(err => console.error('DB toggleTask error:', err));
+    }
     get().calculateStats();
   },
 
@@ -193,6 +242,12 @@ export const usePlanningStore = create<PlanningState>((set, get) => ({
     });
 
     set({ alarms });
+
+    if (alarms.length > 0) {
+      db.alarms.clear()
+        .then(() => db.alarms.bulkPut(alarms))
+        .catch(err => console.error('DB createAlarms error:', err));
+    }
   },
 
   calculateStats: () => {

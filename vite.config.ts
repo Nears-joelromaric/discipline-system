@@ -5,6 +5,18 @@ import { VitePWA } from 'vite-plugin-pwa'
 
 export default defineConfig({
   base: '/discipline-system/',
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vendor-react': ['react', 'react-dom', 'react-router-dom'],
+          'vendor-charts': ['recharts'],
+          'vendor-xlsx': ['xlsx'],
+          'vendor-db': ['dexie', 'zustand'],
+        },
+      },
+    },
+  },
   plugins: [
     react(),
     tailwindcss(),

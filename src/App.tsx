@@ -14,10 +14,11 @@ type Tab = 'dashboard' | 'tasks' | 'analytics' | 'history';
 export default function App() {
   const [activeTab, setActiveTab] = useState<Tab>('dashboard');
   const [showImport, setShowImport] = useState(false);
-  const { tasks, alarms, planning } = usePlanningStore();
+  const { tasks, alarms, planning, initFromDB } = usePlanningStore();
 
   useEffect(() => {
     requestNotificationPermission();
+    initFromDB();
   }, []);
 
   useEffect(() => {

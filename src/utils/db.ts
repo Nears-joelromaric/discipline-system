@@ -10,11 +10,11 @@ export class DisciplineDB extends Dexie {
 
   constructor() {
     super('DisciplineDB');
-    this.version(1).stores({
-      plannings: '++id, title, startDate',
-      tasks: '++id, weekNumber, date, completed',
-      actions: '++id, taskId, timestamp',
-      alarms: '++id, taskId, scheduledTime, triggered',
+    this.version(2).stores({
+      plannings: 'id, title, startDate',
+      tasks: 'id, weekNumber, date, completed',
+      actions: 'id, taskId, timestamp',
+      alarms: 'id, taskId, scheduledTime, triggered',
     });
   }
 }
